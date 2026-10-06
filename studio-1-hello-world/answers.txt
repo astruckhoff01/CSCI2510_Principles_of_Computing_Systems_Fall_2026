@@ -1,0 +1,51 @@
+CSCI 2510: Studio - Hello, world!
+
+1. Required exercise: fprintf() header file
+   #include <stdio.h>
+
+2. Difference between fprintf() and printf() signatures
+   printf(const char *format, ...);
+   fprintf(FILE *stream, const char *format, ...);
+   The key difference is that printf() writes to standard output, while fprintf() writes to a specified stream.
+
+3. Difference described in the DESCRIPTION section
+   printf() writes output to stdout, the standard output stream.
+   fprintf() writes output to the given stream, which may be stdout, stderr, or a file.
+   In other words, printf() is equivalent to fprintf(stdout, ...).
+
+4. hello_fprintf.c
+   #include <stdio.h>
+
+   int main(int argc, char *argv[]) {
+       fprintf(stdout, "Hello, world!\n");
+       return 0;
+   }
+
+   Terminal output:
+   Hello, world!
+
+5. System call section number for man pages
+   Section 2
+
+6. Header file for write()
+   #include <unistd.h>
+
+7. hello_write.c
+   #include <unistd.h>
+
+   int main(int argc, char *argv[]) {
+       const char message[] = "Hello, world!\n";
+       write(STDOUT_FILENO, message, sizeof(message) - 1);
+       return 0;
+   }
+
+8. What happens if the third argument of write() is larger than the buffer?
+   The write() call tries to write the number of bytes you specify. If that value is larger than the actual size of the buffer, the operating system will continue reading memory past the end of the array. This is undefined behavior and may print garbage bytes, extra characters, or crash the program. It is not safe because the function does not know the buffer length automatically.
+
+9. When to use C library functions vs. system calls
+   Use a C library function such as fprintf() when you want portable, standard code that works across systems and hides details like buffering and formatting.
+   Use an OS system call such as write() when you need direct access to the operating system interface, low-level control, or behavior tied to a specific platform.
+
+10. hello.sh
+   #!/bin/bash
+   printf '%s\n' "Hello World!"
