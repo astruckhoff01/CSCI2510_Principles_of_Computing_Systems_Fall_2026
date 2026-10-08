@@ -106,6 +106,10 @@ text file. When finished, submit your work via Canvas.
         !
 
     As the answer to this question, copy-paste your for-loop.
+        for (int i = 0; i < 11; i++) {
+        char char_to_print = *(messagePtr + i);
+        printf("%c\n", char_to_print);
+        }
 
 4.  The *dereference operator* in C is the asterisk (`*`) and is also
     important when using pointers. Just like indexing a pointer, the
@@ -116,6 +120,8 @@ text file. When finished, submit your work via Canvas.
     character does it point to? In other words, what do you think is the
     value of the dereference operation `*messagePtr`?
 
+    messagePtr points to the first character of a string so *messagePtr would give you 'H'
+
 5.  Check your answer to the last exercise by dereferencing `messagePtr`
     and printing it out. The dereference operator is the asterisk when
     placed to the left of a pointer. You can print out a single
@@ -124,6 +130,7 @@ text file. When finished, submit your work via Canvas.
     `printf("%c\n", *pointer_to_string);`
 
     What was printed?
+    'H'
 
 6.  Another way to use pointers is with *pointer arithmetic*. Suppose we
     have a regular string pointer called *ptr*, as seen above this
@@ -148,6 +155,11 @@ text file. When finished, submit your work via Canvas.
     using pointer arithmetic, one character at a time. As the answer to
     this question, copy and paste your new for-loop.
 
+    for(int i = 0 ; i < 11; i++) { 
+        char char_to_print = *(messagePtr + i);
+        printf("%c\n", char_to_print);
+    }
+
 8.  It\'s easy to use pointers with strings when we know exactly what
     the string is. It\'s harder when we don\'t. For example, how did you
     figure out how many iterations of the for-loop you needed for the
@@ -171,6 +183,11 @@ text file. When finished, submit your work via Canvas.
     value as your loop condition. You can use the keyword `NULL` or the
     null character `'\0'` to compare against. As the answer to this
     question copy-paste your while loop.
+
+    while(*messagePtr != '\0') {
+        printf("%c\n", *messagePtr);
+        messagePtr++;
+    }
 
 9. It\'s also important to understand how pointers are treated when
     calling functions. Recall that the two basic ways to pass arguments
@@ -213,6 +230,16 @@ text file. When finished, submit your work via Canvas.
     `char *secondString = "Another string!";`
 
     As the answer to this exercise, copy-paste your function.
+    
+    void printReverse( char* string ){
+        int length = 0;
+        while(string[length] != '\0') {
+            length++;
+        }
+        for(int i = length - 1; i >= 0; i--) {
+            printf("%c\n", string[i]);
+        }
+    }
 
 10. For our last exercise, we will write a second function that
     creates a reversed copy of an input string. Feel free to borrow code
@@ -255,6 +282,42 @@ text file. When finished, submit your work via Canvas.
         printf("Reversed string: %s\n", reversedMessage);
 
     As the answer to this exercise, copy-paste your last function.
+
+    #include <stdio.h>
+#include <stdlib.h>
+
+        char* reverseString( char* input ){
+
+        //1. First count how many characters are in the input string
+        int number_of_chars_in_input = 0;
+        while(input[number_of_chars_in_input] != '\0') {
+            number_of_chars_in_input++;
+        }
+        
+        //This creates enough space to store the reversed string, plus one more byte
+        //for the null terminator
+        char* output = (char*)malloc( number_of_chars_in_input+1);
+
+        //2. Copy the input string to the output string in reverse order. There are
+        //multiple ways to do this- consider using a counter, or consider using two
+        //pointers. 
+        for(int i = number_of_chars_in_input - 1; i >= 0; i--) {
+            output[number_of_chars_in_input - 1 - i] = input[i];
+        }
+        output[number_of_chars_in_input] = '\0';
+
+        //REMEMBER THAT YOUR OUTPUT STRING MUST END WITH A NULL TERMINATOR. This is not
+        //provided for you automatically- you must put it there!
+
+            return output; 
+        }
+
+        int main() {
+            char *messagePtr = "Good day!";
+            char* reversedMessage = reverseString( messagePtr );
+            printf("Reversed string: %s\n", reversedMessage);
+            return 0;
+        }
 
 ### Optional Enrichment Exercises
 
