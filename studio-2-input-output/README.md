@@ -30,6 +30,8 @@ source code to Canvas.
     few lines of text to the console (and hit enter after each line). As
     the answer to this exercise, describe what happens.
 
+    Anything you type is echoed back to the terminal, it keeps going until you tell it to stop. 
+
     You can type CTRL-D on a blank line in order to quit `cat`. Typing
     CTRL-D sends a special \"end of file\" character to the terminal. It
     is common for terminal programs to act like they're reading a file,
@@ -51,6 +53,8 @@ source code to Canvas.
     `cat < mars.txt`
 
     As the answer to this exercise, describe what happens.
+    
+    It reads the file and prints the contents in the terminal.
 
 3.  We can also redirect output. This time, redirect standard output
     with the \'`>`\' character into a new text file. Use the syntax:
@@ -60,6 +64,8 @@ source code to Canvas.
     Open up the `new.txt` file. As the answer to this exercise, describe
     what happens.
 
+    It copied over the contents from mars.txt into the new file.
+
 4.  Now try the following command `cat > new.txt`
 
     Enter a few lines of text by pressing enter. Open up your text file to see the
@@ -67,11 +73,15 @@ source code to Canvas.
 
     As the answer to this exercise, describe what happens.
 
+    It replaces the previous contents with the information entered in terminal
+
 5.  One last useful tip. Repeat the last exercise, but instead of using
     a single greater-than symbol, use two. (That is, use \'`>>`\'
     instead of \'`>`\'). Try running this command several times.
 
     What happens now?
+
+    It doesn't replace the old text, it adds it to the bottom of the file
 
 6.  Now we\'ll write a short program that mimics the behavior of `cat`.
     Start by creating a new file called `copy.c` and fill it out with
@@ -82,6 +92,8 @@ source code to Canvas.
     `write()`, and look at your code from Studio 01 to see how you used
     `write()`. What header file do you need to include to use these
     system calls?
+
+    #include <unistd.h>
 
 7.  Both functions require a *buffer* (a fixed region of memory) to
     operate. At the top of your program, before the `main()` declaration,
@@ -99,6 +111,8 @@ source code to Canvas.
     an end of file character. Look up the documentation for the `read()`
     system call. What is the return value ***type*** for `read()`? What
     is the specific return value that indicates the end of a file?
+
+    It has a return type of ssize_t and 0 indicates the end of a file
 
 9.  Your last job is to translate the following algorithm into C code.
     Inside an infinite loop:
@@ -121,8 +135,12 @@ source code to Canvas.
     to one? Try a few different values for `bufferSize` and record the
     results.
 
+    The bufferSize did not affect the correctness of the program.
+
 11. What do you think the tradeoff is between having a small
     `bufferSize` versus having a large one?
+
+    A small bufferSize would use less memory but requires more calls to read() and write() which makes the program slower. A large bufferSize would use more memory and require fewer system calls which makes it more efficient. 
 
 ### Optional Enrichment Exercises
 
