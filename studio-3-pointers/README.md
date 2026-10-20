@@ -284,7 +284,7 @@ text file. When finished, submit your work via Canvas.
     As the answer to this exercise, copy-paste your last function.
 
     #include <stdio.h>
-#include <stdlib.h>
+    #include <stdlib.h>
 
         char* reverseString( char* input ){
 
