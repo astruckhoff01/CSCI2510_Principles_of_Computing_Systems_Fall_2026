@@ -1,0 +1,96 @@
+
+    #include <unistd.h>
+    #include <fcntl.h>
+    #include <stdio.h>
+
+    #define bufferSize 200
+
+    int main( int argc, char* argv[] ){
+      if ( argc != 2 ) {
+        fprintf( stderr, "usage: %s <filename>\n", argv[0] );
+        return -1;
+      }
+
+      int fd = open( argv[1], O_RDONLY );
+      if ( fd == -1 ) {                       // man 2 open: -1 on error
+        perror( "Error opening file" );
+        return -1;
+      }
+
+      char buffer[ bufferSize ];
+      ssize_t bytesRead;
+
+      while ( ( bytesRead = read( fd, buffer, bufferSize ) ) > 0 ) {
+        if ( write( STDOUT_FILENO, buffer, bytesRead ) == -1 ) {
+          perror( "Error writing to standard output" );
+          close( fd );
+          return -1;
+        }
+      }
+
+      if ( bytesRead == -1 ) {                // 0 is end of file, -1 is an error
+        perror( "Error reading file" );
+        close( fd );
+        return -1;
+      }
+
+      if ( close( fd ) == -1 ) {
+        perror( "Error closing file" );
+        return -1;
+      }
+
+      return 0;
+    }
+
+
+Nothing. The program prints no output, says nothing, and exits.
+
+The same as exercise 2 - no output, exit code 0. 
+
+-1.
+
+
+if ( fd == -1 ) {}
+
+perror( "Error opening file" );
+
+
+    $ ./open nosuchfile.txt
+    Error opening file: No such file or directory
+    $ echo $?
+    255
+
+
+    $ ./open perm.txt
+    Error opening file: Permission denied
+    $ echo $?
+    255
+
+
+Return values and errno for five functions
+
+    function      on success                on error      sets errno?
+    ---------------------------------------------------------------
+    open   (2)    non-negative fd           -1            yes
+    close  (2)    0                         -1            yes
+    read   (2)    bytes read (0 = EOF)      -1            yes
+    write  (2)    bytes written             -1            yes
+    printf (3)    characters printed        negative      not stated
+
+
+Two reasons error checking simplifies development
+
+It first moves the failure to its original location. Without the check, a
+bad open() produced a program that read from descriptor -1, ignored that
+failure too, and exited claiming success. The bug either doesn't appear 
+at all or appears far from its source. The check causes the application 
+to stop at the call that failed and identify it. Debugging a visible failure 
+is far quicker than debugging an incorrect outcome without any errors.
+
+
+Second, you can get the specific reason with errno and perror(). A 
+missing file and an unreadable file were the same: no output, exit 
+code zero. I didn't write the words "No such file or directory" or 
+"Permission denied" even though they show up after checking. The OS 
+already knows why the call failed, and checking is what allows you to 
+access that information rather than discarding it.
