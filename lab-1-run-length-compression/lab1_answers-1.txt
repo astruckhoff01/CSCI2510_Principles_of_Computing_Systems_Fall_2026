@@ -1,0 +1,182 @@
+CSCI 2510: Lab 1 - Run Length Compression
+Anna Struckhoff
+October 27, 2026
+
+1. Name
+
+Anna Struckhoff.
+
+2. When this encoding helps
+
+The SLU logo is a good example: 4,937,534 source bytes became 133,552
+bytes at a compression length of one, a ratio of 36.971. Large areas of
+the same color provide many identical adjacent bytes, so the counter
+replaces a lot of repeated data.
+
+The 1mil_random file is a poor example. Its 1,000,000 bytes became
+1,598,828 bytes, giving a ratio of 0.6255. A ratio below one means the
+encoded file expanded. With short or absent runs, each pattern still
+needs a count byte, and that overhead exceeds the savings.
+
+RLE depends on consecutive repetition, not just on the total number of
+times a value occurs somewhere in a file.
+
+3. Comparing the three distributions
+
+The strong-bias file should compress best. When zero is much more likely
+than another value, adjacent zeroes are more likely to form longer runs.
+The weak bias should help less, and evenly distributed random data should
+give the least useful runs.
+
+The local tests at compression length 1 produced:
+
+    File                      Input bytes Output bytes       Ratio
+    1mil_random            1,000,000   1,598,828      0.6255
+    1mil_weak_bias         1,000,000     851,464      1.1744
+    1mil_strong_bias       1,000,000     409,084      2.4445
+
+Ratio = input bytes / output bytes. The strong-bias file saves about
+59.1% of its original bytes. The weak-bias file saves about 14.9%. The
+random file grows by about 59.9%, which agrees with the prediction.
+
+4. Timing test4 at length 1
+
+Command (using the portable -p format of time):
+
+    time -p ./rle test4 output 1 0
+
+Recorded timing output:
+
+    real 6.26
+    user 0.62
+    sys 5.61
+
+The real elapsed time is 6.26 seconds. test4 contains 3,217,782 bytes;
+the encoded file is 6,280,644 bytes. Most of this run's CPU time is in
+the kernel, rather than in the byte comparisons done by the program.
+
+5. Timing test4 at length 10
+
+    time -p ./rle test4 output 10 0
+
+Recorded timing output:
+
+    real 0.63
+    user 0.06
+    sys 0.57
+
+The real elapsed time is 0.63 seconds, about 9.9 times faster in these
+runs. The encoded file is also smaller: 3,538,912 bytes.
+
+At length 1, roughly 3.2 million one-byte reads are needed. At length 10,
+the input is processed in roughly 322,000 chunks instead. There are fewer
+output records too. Each encoded record is emitted with one write in this
+implementation, with a retry loop for a partial write.
+
+The results support the hypothesis that system-call overhead dominates
+this workload. Reading a larger chunk amortizes the cost of entering the
+kernel across more bytes. System CPU time falls from 5.61 to 0.57 seconds,
+while user CPU time is much smaller in both runs. These are local timings;
+another machine or a later run can produce different elapsed times.
+
+6. Extra credit
+
+Both image comparisons were completed: slu_logo.bmp and uncompressed.bmp.
+Both original BMPs were opened in the Photopea photo editor and saved
+using File > Export as > PNG and File > Export as > JPG. PNG quality was
+100 and JPEG quality was 70. Original dimensions were preserved, and no
+image content was edited. The following numbers depend on those settings.
+
+Extra credit: slu_logo.bmp
+
+The RLE encode/decode round trip was compared byte for byte with the
+original BMP, and matched. The restored image is 2053 by 2401 pixels.
+The PNG's decoded RGB pixels were also checked against the original
+image's decoded RGB pixels and matched exactly.
+
+    Format                         Bytes       Ratio
+    BMP source              4,937,534       1.000
+    RLE (length 1)            133,552      36.971
+    PNG                        71,562      68.997
+    JPEG (quality 70)         143,992      34.290
+
+The logo has sharp boundaries and broad uniform areas. Both RLE and PNG
+benefit from this structure. PNG gives the smallest file here; it can
+combine row filtering with a more general compression method, while this
+RLE encoder only recognizes immediately repeated patterns.
+
+The PNG and JPEG previews show the same crest and lettering at the
+preview size. JPEG is still lossy, whereas the PNG's RGB equality was
+verified directly. JPEG offers no advantage over PNG in this test: its
+file is larger and its decoded pixels need not be exact.
+
+Extra credit: uncompressed.bmp
+
+The RLE round trip matched the original BMP byte for byte at lengths 1
+and 10. The image is 3840 by 2160 pixels. The PNG's decoded RGB pixels
+matched the original image's decoded RGB pixels exactly.
+
+    Format                         Bytes       Ratio
+    BMP source             24,883,254       1.000
+    RLE (length 1)         48,099,632       0.517
+    PNG                     8,838,100       2.815
+    JPEG (quality 70)         430,155      57.847
+
+This image shows colored jelly shapes on plates in a bright room. The
+reflections, gradients, and fine detail produce far fewer exactly equal
+neighboring bytes, so length-1 RLE expands it to nearly twice its size.
+PNG still reduces the size, and JPEG gives by far the largest reduction.
+
+In the comparison previews, the PNG and JPEG look very similar; the
+plates, reflections, and colored shapes remain recognizable without an
+obvious change in composition or color. The small JPEG file is useful
+when that visual similarity is enough. The byte-identical BMP round trip
+and pixel-identical PNG remain appropriate when exact recovery matters.
+
+Implementation notes
+
+    gcc -Wall -Wextra -Werror -o rle rle.c
+
+All file data is read and written through read() and write(), with open()
+and close() managing the descriptors. The program checks error returns,
+retries interrupted reads/writes, handles partial transfers, prints
+diagnostics to stderr, and exits with -1 on failure (reported by a Unix
+shell as 255). Successful runs produce no stdout output.
+
+The encoder stores a one-byte binary count and the pattern together. It
+compares a lookahead pattern to the active run and swaps the two buffers
+when the pattern changes. Counts stop at 255; a longer repeated sequence
+starts another record. An incomplete final pattern is stored with its
+actual byte length. Decoding requires the same compression length that
+was used to encode the file.
+
+The output is opened with O_WRONLY | O_CREAT | O_TRUNC and owner read/write
+permissions, as specified in the handout. An existing destination is
+checked against the input before that open to prevent same-file erasure.
+
+The decoder writes the stored pattern count times. Its count is unsigned,
+so values from 128 to 255 are handled correctly. Empty input produces
+empty output. Input and output referring to the same file are rejected
+before any truncation, including a hard link to the input.
+
+Verification
+
+All five byte sequences in the lab README matched, including the
+300-A example that splits into counts 255 and 45. All nine supplied
+files were encoded and decoded at length 1, with exact byte equality:
+
+    test1, test2, test3, test4
+    1mil_random, 1mil_weak_bias, 1mil_strong_bias
+    slu_logo.bmp, uncompressed.bmp
+
+Additional round trips passed for test1 at lengths 2, 4, 5, and 10, and
+for test4 and uncompressed.bmp at length 10. Another 24 checks compared
+encoded results with a separate reference encoder and checked recovery,
+covering empty data, counts at and beyond 255, embedded zero bytes,
+all byte values, and incomplete final patterns.
+
+Invalid argument counts, zero and negative lengths, invalid numeric
+strings, invalid modes, nonexistent inputs, unreadable inputs, missing
+output directories, malformed encoded records, and input/output aliasing
+were rejected. Writing over a longer existing output file also produced
+the correct shorter file without leaving old bytes at the end.
