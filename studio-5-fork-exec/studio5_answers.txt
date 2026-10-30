@@ -1,0 +1,262 @@
+CSCI 2510: Studio 5 - Fork and Exec
+Anna Struckhoff
+October 27, 2026
+
+1. A process identifier
+
+The first version prints getpid(), cast to long for the %ld format:
+
+    int main(void)
+    {
+        printf("Process PID = %ld\n", (long)getpid());
+        return 0;
+    }
+
+Output from three separate executions:
+
+    Process PID = 16726
+    Process PID = 16728
+    Process PID = 16729
+
+Each invocation starts a new process, so the identifier changes. A PID
+identifies a process while it exists; the system can reuse that number later.
+
+2. Adding fork() before the print
+
+    int main(void)
+    {
+        fork();
+        printf("Process PID = %ld\n", (long)getpid());
+        return 0;
+    }
+
+Captured output:
+
+    Process PID = 16733
+    Process PID = 16734
+
+There are two lines because both processes continue after fork(). Each
+reaches the same printf, but getpid() reports the PID of the process
+actually executing that call.
+
+3. Return values
+
+A successful fork returns 0 in the child and the child's positive PID in
+the parent. If creating the child fails, the parent receives -1, errno
+describes the error, and no child is created. The two successful returns
+belong to two different processes; they are not two returns within one
+execution of the parent.
+
+4. Identifying each process
+
+    int main(void)
+    {
+        pid_t child_PID = fork();
+        if (child_PID == 0) {
+            printf("Child PID = %ld\n", (long)getpid());
+        } else if (child_PID > 0) {
+            printf("Parent PID = %ld\n", (long)getpid());
+        } else {
+            perror("fork");
+            return 1;
+        }
+        return 0;
+    }
+
+Captured output:
+
+    Parent PID = 16738
+    Child PID = 16739
+
+The value saved from fork selects the branch. getpid() supplies the actual
+identifier in each branch. Printing child_PID from inside the child would
+print zero, since that is fork's return value in that process.
+
+5. Delaying the child
+
+Inserted at the start of the child branch:
+
+    sleep(3);
+
+Captured output:
+
+    Parent PID = 16743
+    Child PID = 16745
+
+The parent reports its PID without waiting for the three-second delay.
+The child reports its PID afterward. In an interactive terminal the shell
+can display its next prompt before that delayed child prints. A sleep in
+one process does not suspend the other process.
+
+6. Waiting for that child
+
+Inserted before the parent's printf, with <sys/wait.h> included:
+
+    waitpid(child_PID, NULL, 0);
+
+Captured output:
+
+    Child PID = 16755
+    Parent PID = 16754
+
+The child's output now comes first because the parent cannot reach its
+printf until the child terminates. The third argument, zero, requests a
+blocking wait. The final program also retries waitpid if a signal
+interrupts it, and checks for other errors.
+
+7. Checking the command directly
+
+The ls tests use an empty temporary working directory so the listing is
+short. Running ls -l there produced:
+
+    total 0
+
+The directory has no listed files, so the total is zero. ls describes the
+working directory, regardless of where the executable itself is stored.
+
+8. Replacing the child's program
+
+Final fork.c:
+
+    // Anna Struckhoff
+    // October 27, 2026
+    // Run ls -l in a child; print the parent's PID after the child finishes.
+
+    #include <errno.h>
+    #include <stdio.h>
+    #include <sys/wait.h>
+    #include <unistd.h>
+
+    int main(void)
+    {
+        char *child_argv[] = {"ls", "-l", NULL};
+        char *child_prog = child_argv[0];
+        pid_t child_PID = fork();
+
+        switch (child_PID) {
+        case -1:
+            perror("fork");
+            return 1;
+        case 0:
+            sleep(3);
+            execvp(child_prog, child_argv);
+            perror("execvp");
+            _exit(127);
+        default:
+            // A signal may interrupt the wait without ending the child.
+            while (waitpid(child_PID, NULL, 0) == -1) {
+                if (errno != EINTR) {
+                    perror("waitpid");
+                    return 1;
+                }
+            }
+            printf("Parent finished waiting; PID = %ld\n", (long)getpid());
+            return 0;
+        }
+    }
+
+Captured output in the same empty directory:
+
+    total 0
+    Parent finished waiting; PID = 16764
+
+The child wakes after sleep, then execvp loads ls into that child process.
+Successful execvp does not return to the old program. After ls exits,
+waitpid releases the parent and the parent prints its own PID. If execvp
+fails, perror explains the failure and _exit(127) ends the child.
+
+Optional enrichment 1. A different executable
+
+For this test the argument declaration becomes:
+
+    char *child_argv[] = {"wc", "-l", "fork.c", NULL};
+    char *child_prog = child_argv[0];
+
+Running this version with the Studio5 source folder as its working
+directory produced:
+
+          36 fork.c
+    Parent finished waiting; PID = 16770
+
+This counts lines rather than listing files. The executable name is also
+argv[0] for the program being started, and NULL ends its argument array.
+
+Optional enrichment 2. A command from the command line
+
+Final fork_exec.c:
+
+    // Anna Struckhoff
+    // October 27, 2026
+    // Optional exercise: execute the command supplied after this program's name.
+
+    #include <errno.h>
+    #include <stdio.h>
+    #include <sys/wait.h>
+    #include <unistd.h>
+
+    int main(int argc, char *argv[])
+    {
+        if (argc < 2) {
+            fprintf(stderr, "Usage: %s command [arguments...]\n", argv[0]);
+            return 1;
+        }
+
+        pid_t child = fork();
+        if (child < 0) {
+            perror("fork");
+            return 1;
+        }
+        if (child == 0) {
+            // Skip our executable name; the remaining array already ends in NULL.
+            execvp(argv[1], argv + 1);
+            perror("execvp");
+            _exit(127);
+        }
+
+        int status;
+        while (waitpid(child, &status, 0) < 0) {
+            if (errno != EINTR) {
+                perror("waitpid");
+                return 1;
+            }
+        }
+        printf("Parent PID %ld: child completed\n", (long)getpid());
+
+        if (WIFEXITED(status)) {
+            return WEXITSTATUS(status);
+        }
+        return 1;
+    }
+
+Command: ./fork_exec echo process arguments work
+
+    process arguments work
+    Parent PID 16777: child completed
+
+Command: ./fork_exec wc -l fork.c fork_exec.c
+
+          36 fork.c
+          42 fork_exec.c
+          78 total
+    Parent PID 16779: child completed
+
+Command: ./fork_exec no_such_studio_program
+
+    execvp: No such file or directory
+    Parent PID 16781: child completed
+
+The last command exits with status 127. The parent waits and prints even
+when the child cannot execute its command. For a normally exited child,
+this version returns that child's exit status. Supplying no command is
+also rejected with a usage message and status 1.
+
+Verification
+
+    gcc -Wall -Wextra -Werror -o fork fork.c
+    gcc -Wall -Wextra -Werror -o fork_exec fork_exec.c
+
+Both compile without warnings. The outputs above were captured by local
+test runs on October 27, 2026. PIDs, scheduling order without waitpid,
+and directory listings can change on another run.
+
+Files: fork.c, fork_exec.c, studio5_answers.txt
