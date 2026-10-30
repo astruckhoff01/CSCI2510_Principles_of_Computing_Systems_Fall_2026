@@ -1,0 +1,25 @@
+CSCI 2510 - Studio 6
+Anna Struckhoff
+
+Files:
+  parse.c               Final C program
+  studio6_answers.txt   Numbered answers and recorded program output
+
+Build on a POSIX system (Linux or macOS):
+  cc -std=c11 -Wall -Wextra -Wpedantic -Werror parse.c -o parse
+
+Run:
+  ./parse
+
+Example input:
+  echo hello from Studio 6
+
+The program accepts one command with up to 15 space-separated arguments.
+Input is limited to 255 characters before the newline. Quoting, pipelines,
+redirection, and shell built-ins are outside this studio's requirements.
+
+The handout requests submission through your Git repository. Place parse.c
+and studio6_answers.txt in the Studio 6 directory of your course submission
+repository, then follow the course's commit and push process. Include this
+ZIP only if your submission destination accepts archives. No submission has
+been made automatically.

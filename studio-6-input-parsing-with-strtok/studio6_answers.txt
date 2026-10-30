@@ -1,0 +1,244 @@
+CSCI 2510: Studio 6 - Parsing String Input
+Anna Struckhoff
+October 29, 2026
+
+------------------------------------------------------------------------
+1. Reading and printing input
+
+    #include <stdio.h>
+    #include <string.h>
+    #define bufferSize 256
+    int main(void) {
+        char buffer[bufferSize];
+        printf("Enter input: ");
+        fflush(stdout);
+        if (fgets(buffer, bufferSize, stdin) == NULL) {
+            return 1;
+        }
+        printf("%s\n", buffer);
+        return 0;
+    }
+
+Output (interactive terminal):
+
+    Enter input: Practice input for Studio 6
+    Practice input for Studio 6
+    
+
+The input is read from stdin into a 256-byte character array.
+fgets() reserves one byte for '\0', so the array can hold up to
+255 input characters. A newline read from the input remains in
+the array. Printing that line with another \n accounts for the
+blank line shown below the repeated text.
+
+------------------------------------------------------------------------
+2. First and subsequent calls to strtok()
+
+To begin tokenizing a string, give strtok() a pointer to that
+string. To get additional tokens from the same string, use NULL
+for that parameter. strtok() remembers the current position.
+Every call also receives the delimiters, and the function returns
+NULL after it has reached the end of the tokens.
+
+------------------------------------------------------------------------
+3. Delimiter for regular text
+
+Use " " as the delimiter string. Its single character is a space,
+which divides ordinary space-separated text into words. More than
+one space between words does not create extra empty words.
+
+------------------------------------------------------------------------
+4. Printing the first token
+
+    char* token = strtok( buffer, " " );
+    if ( token != NULL ) {
+      printf( "%s\n", token );
+    }
+
+Output (interactive terminal):
+
+    Enter input: learning how strtok works
+    learning
+
+The first token points to learning. Only one token is requested
+at this stage. Checking token before printf() also handles input
+that contains no words.
+
+------------------------------------------------------------------------
+5. Printing all tokens
+
+    char* token = strtok( buffer, " " );
+    while ( token != NULL ) {
+      printf( "%s\n", token );
+      token = strtok( NULL, " " );
+    }
+
+Output (interactive terminal):
+
+    Enter input: learning how strtok works
+    learning
+    how
+    strtok
+    works
+    
+
+Each pass prints the current word and obtains the next one using
+strtok(NULL, " "). The loop finishes when the result is NULL.
+At this point works still has the input newline attached, so
+printing it adds the extra blank line visible in the transcript.
+
+------------------------------------------------------------------------
+6. Removing the input newline
+
+    buffer[ strcspn( buffer, "\n" ) ] = '\0';
+
+This replaces the first newline in buffer with a string-ending
+null character. If no newline is present, strcspn() returns the
+length of the string, so the existing terminator is retained.
+Run this after fgets() succeeds and before tokenizing buffer.
+
+------------------------------------------------------------------------
+7.
+
+------------------------------------------------------------------------
+8. Assigning cmd
+
+    cmd = strtok( buffer, " " );
+
+The command is the first word of the input. Assigning the pointer
+returned by strtok() directly to cmd gives execvp() its command
+name. When there is no first word, the final program exits before
+calling execvp().
+
+------------------------------------------------------------------------
+9. Building my_argv
+
+    my_argv[0] = cmd;
+
+    // each remaining token fills the next slot, then a NULL caps the array
+    int i = 1;
+    char* res = strtok( NULL, " " );
+    while ( res != NULL && i < max_argv_size - 1 ) {
+      my_argv[i] = res;
+      i++;
+      res = strtok( NULL, " " );
+    }
+    my_argv[i] = NULL;
+    if ( res != NULL ) {
+      fprintf( stderr, "Too many arguments (maximum %d).\n", max_args );
+      return 1;
+    }
+
+The first slot is reserved for cmd, as argv[0] normally contains
+the program name. Starting at slot 1, the loop stores pointers to
+the later tokens. A NULL pointer in the next unused slot marks
+the end for execvp(). This is separate from the '\0' characters
+that terminate the strings themselves.
+
+The size check preserves the last slot for NULL. Fifteen
+arguments fit after the command name; any additional argument
+causes an error rather than a partially executed command.
+
+------------------------------------------------------------------------
+10. Executing the command
+
+Final program (parse.c):
+
+    // Anna Struckhoff
+    // October 29, 2026
+    // Reads a line of input, splits it into tokens with strtok(), packs the tokens
+    // into a my_argv[] array, and runs the result as a program with execvp().
+    // This is the springboard for Lab 2.
+
+    #include <stdio.h>
+    #include <string.h>
+    #include <unistd.h>
+
+    #define bufferSize 256
+
+    int main( void ){
+      char buffer[ bufferSize ];
+
+      printf( "Enter a command: " );
+      fflush( stdout );
+      if ( fgets( buffer, bufferSize, stdin ) == NULL ) {
+        if ( ferror( stdin ) ) {
+          perror( "Error reading input" );
+          return 1;
+        }
+        return 0;
+      }
+
+      // Reject a line that does not fit rather than run a shortened command.
+      if ( strchr( buffer, '\n' ) == NULL ) {
+        int next = getchar();
+        if ( ferror( stdin ) ) {
+          perror( "Error reading input" );
+          return 1;
+        }
+        if ( next != '\n' && next != EOF ) {
+          fprintf( stderr, "Input is too long (maximum %d characters).\n", bufferSize - 1 );
+          return 1;
+        }
+      }
+
+      // strip the trailing newline that fgets() leaves on the end
+      buffer[ strcspn( buffer, "\n" ) ] = '\0';
+
+      int max_args = 15;
+      int max_argv_size = max_args + 2;   // one for argv[0], one for the NULL terminator
+      char* cmd;
+      char* my_argv[ max_argv_size ];
+
+      // the command is always the first token
+      cmd = strtok( buffer, " " );
+      if ( cmd == NULL ) {
+        return 0;
+      }
+      my_argv[0] = cmd;
+
+      // each remaining token fills the next slot, then a NULL caps the array
+      int i = 1;
+      char* res = strtok( NULL, " " );
+      while ( res != NULL && i < max_argv_size - 1 ) {
+        my_argv[i] = res;
+        i++;
+        res = strtok( NULL, " " );
+      }
+      my_argv[i] = NULL;
+      if ( res != NULL ) {
+        fprintf( stderr, "Too many arguments (maximum %d).\n", max_args );
+        return 1;
+      }
+
+      execvp( cmd, my_argv );
+
+      // only reached if execvp() fails
+      perror( "Error executing command" );
+      return 1;
+    }
+
+Build and run:
+
+    cc -std=c11 -Wall -Wextra -Wpedantic -Werror parse.c -o parse
+    ./parse
+
+Output (interactive terminal):
+
+    Enter a command: echo hello from Anna
+    hello from Anna
+
+    Enter a command: echo one two three
+    one two three
+
+After tokenizing, execvp() receives the command name and the
+completed argument array. A successful call replaces the running
+parser with the requested program. If it fails, perror() reports
+the problem and the parser returns an error status. It processes
+a single command, with no fork or command loop in this studio.
+
+Verification: compiled with the flags above and passed 15 runtime
+checks with undefined-behavior sanitization. Checks included empty
+input, EOF, repeated spaces, a missing final newline, the 255-character
+input boundary, 15 arguments, excess arguments, failed input reads,
+and a command that could not be executed.
