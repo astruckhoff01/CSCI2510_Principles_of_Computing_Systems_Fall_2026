@@ -1,0 +1,27 @@
+CSCI 2510 - Studio 7: Pipes
+Anna Struckhoff
+
+Files:
+  print.c               Program 1: prints a line
+  loop.c                Program 2: reads and echoes lines until EOF
+  pipe.c                Final program: connects the children with a pipe
+  studio7_answers.txt   Answers to exercises 1 through 8
+
+Build on Linux or macOS from the directory containing all three sources:
+  cc -std=c11 -Wall -Wextra -Wpedantic -Werror print.c -o print
+  cc -std=c11 -Wall -Wextra -Wpedantic -Werror loop.c -o loop
+  cc -std=c11 -Wall -Wextra -Wpedantic -Werror pipe.c -o pipe
+
+Run from that same directory so ./print and ./loop can be found:
+  ./pipe
+
+Expected output (followed by a blank line):
+  Program 2 got: A message from Program 1
+
+The final program exits automatically. The intermediate versions described
+in exercises 2 and 6 wait for input and are stopped with CTRL-C.
+
+The handout requests submission through the Git repository. Copy the three
+C files and studio7_answers.txt into the Studio 7 directory in the course
+submission repository, then follow the course's commit and push process.
+The ZIP packages these files for transfer; it has not been submitted.

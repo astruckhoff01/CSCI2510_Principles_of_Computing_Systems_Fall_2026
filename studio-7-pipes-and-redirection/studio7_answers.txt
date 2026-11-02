@@ -1,0 +1,190 @@
+CSCI 2510: Studio 7 - Pipes
+Anna Struckhoff
+November 1, 2026
+
+------------------------------------------------------------------------
+1. Two separate programs
+
+Program 1 (print.c) writes a line to standard output and finishes:
+
+    // Anna Struckhoff
+    // November 1, 2026
+    // Program 1 sends one line to standard output.
+    
+    #include <stdio.h>
+    
+    int main(void) {
+        printf("A message from Program 1\n");
+        return 0;
+    }
+
+Output:
+
+    A message from Program 1
+
+Program 2 (loop.c) repeatedly reads standard input with fgets(). The loop
+ends when fgets() returns NULL, which normally means EOF:
+
+    // Anna Struckhoff
+    // November 1, 2026
+    // Program 2 echoes input lines until standard input reaches EOF.
+    
+    #include <stdio.h>
+    
+    #define BUFFER_SIZE 256
+    
+    int main(void) {
+        char line[BUFFER_SIZE];
+    
+        while (1) {
+            if (fgets(line, sizeof(line), stdin) == NULL) {
+                break;
+            }
+            printf("Program 2 got: %s\n", line);
+        }
+    
+        if (ferror(stdin)) {
+            perror("Reading input");
+            return 1;
+        }
+        return 0;
+    }
+
+Example terminal session, entering two lines and then CTRL-D at the start
+of the next line:
+
+    practice line
+    Program 2 got: practice line
+
+    one more line
+    Program 2 got: one more line
+
+fgets() keeps the newline at the end of each input line. Since the printf()
+format also adds a newline, there is a blank line after each echoed line.
+The final ferror() check distinguishes an input error from normal EOF.
+
+------------------------------------------------------------------------
+2. Forking and executing the children before adding a pipe
+
+The parent forks a writer child and a reader child. The writer calls
+execvp("./print", args), and the reader calls execvp("./loop", args).
+Each argument array ends in NULL. The parent uses waitpid() for both PIDs.
+
+Observed output with terminal input left open:
+
+    A message from Program 1
+
+Program 1 finishes, but Program 2 waits in fgets() for keyboard input.
+Its stdin is still the terminal, so it does not receive Program 1's output.
+The parent waits for Program 2, and CTRL-C stops the programs. Program 2
+can still accept typed lines at this stage; it simply has no connection
+to Program 1 yet.
+
+------------------------------------------------------------------------
+3. Read and write ends of the pipe
+
+According to man 2 pipe, fd[0] is the read end and fd[1] is the write end.
+Bytes sent to fd[1] become available to read from fd[0]. The array is
+named pipefd in the final program, so pipefd[0] receives data and
+pipefd[1] sends it.
+
+------------------------------------------------------------------------
+4. The descriptor replaced by dup2()
+
+In dup2(oldfd, newfd), the second argument, newfd, is closed first if it
+is already open, then made to refer to the same underlying object as
+oldfd. The first descriptor remains open. If oldfd and newfd are the
+same valid descriptor, dup2() leaves that descriptor unchanged.
+
+For dup2(pipefd[1], STDOUT_FILENO), standard output is the descriptor
+being replaced. Writes to stdout then go to the pipe's write end.
+
+------------------------------------------------------------------------
+5. Redirecting standard output and standard input
+
+In the writer child, after fork() and before execvp():
+
+    if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+        perror("Redirecting stdout");
+        _exit(1);
+    }
+
+In the reader child, after fork() and before execvp():
+
+    if (dup2(pipefd[0], STDIN_FILENO) == -1) {
+        perror("Redirecting stdin");
+        _exit(1);
+    }
+
+The writer sends its standard output into the pipe, and the reader gets
+its standard input from the pipe. These descriptor settings remain in
+place when execvp() replaces each child with its program.
+
+------------------------------------------------------------------------
+6. Redirection before closing unused descriptors
+
+Observed output:
+
+    Program 2 got: A message from Program 1
+    
+
+The line reaches Program 2 through the pipe, but the programs still wait
+instead of finishing. The parent and reader still hold write descriptors,
+so Program 2 has no EOF to tell it that all input is finished. CTRL-C
+stops this intermediate version.
+
+------------------------------------------------------------------------
+7. Closing the unused pipe ends
+
+After redirecting stdout, the writer closes its original descriptors:
+
+    close(pipefd[0]);
+    close(pipefd[1]);
+
+Its stdout descriptor still refers to the write end, so ./print can write
+normally. That remaining descriptor closes when ./print exits.
+
+After redirecting stdin, the reader also closes the original descriptors:
+
+    close(pipefd[1]);
+    close(pipefd[0]);
+
+Its stdin descriptor still refers to the read end. Closing the reader's
+write descriptor prevents it from keeping its own input open indefinitely.
+
+The parent does not use either end, so it closes both before waitpid():
+
+    close(pipefd[0]);
+    close(pipefd[1]);
+
+Observed output from the final pipe.c:
+
+    Program 2 got: A message from Program 1
+    
+
+This version returns automatically with exit status 0. Once the writer
+exits, every write descriptor has been closed. After consuming the
+remaining bytes, Program 2 reaches EOF, leaves its loop, and finishes.
+The parent can then finish waiting for both children.
+
+The final source is in pipe.c. Build and run from the directory containing
+all three programs:
+
+    cc -std=c11 -Wall -Wextra -Wpedantic -Werror print.c -o print
+    cc -std=c11 -Wall -Wextra -Wpedantic -Werror loop.c -o loop
+    cc -std=c11 -Wall -Wextra -Wpedantic -Werror pipe.c -o pipe
+    ./pipe
+
+------------------------------------------------------------------------
+8. Two advantages of using streams without knowing their source
+
+1) Programs can be combined without changing their source code. A program
+that produces text can feed another program that processes text, even
+when they were developed separately. Here, print.c and loop.c do not
+need to know each other's names or use any pipe calls themselves.
+
+2) The same input/output code can be reused in different settings. For
+example, loop can read typed input during testing, read a saved file
+through input redirection, or receive another program's output through
+a pipe. It continues using fgets() in each case. Its output can also be
+redirected to a file without changing its printf() calls.
