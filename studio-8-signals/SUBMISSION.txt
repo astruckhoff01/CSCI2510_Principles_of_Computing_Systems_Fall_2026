@@ -27,10 +27,3 @@ sleeper. The optional SIGUSR1 program finishes automatically.
 To send a signal from another terminal, use the printed sleeper PID:
   kill -s INT <pid>
   kill -s TERM <pid>
-
-The answers contain recorded macOS output; PIDs change between runs.
-
-The handout requests submission through the Git repository. Copy the C files
-and studio8_answers.txt into the Studio 8 directory of Anna's course
-repository and follow the normal commit and push process. No submission
-has been made automatically.
