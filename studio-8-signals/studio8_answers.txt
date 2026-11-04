@@ -1,0 +1,202 @@
+CSCI 2510: Studio 8 - Signals
+Anna Struckhoff
+November 3, 2026
+
+------------------------------------------------------------------------
+1. Running the sleeper
+
+Compiled sleep.c with "cc -Wall -o sleep sleep.c" and ran ./sleep:
+
+    Sleeper's PID is: 58633
+    Slept for 0 iterations!
+    Slept for 1 iterations!
+    Slept for 2 iterations!
+    ^C
+
+The process prints its PID, then keeps reporting another iteration every
+second. CTRL-C ends it. It doesn't need to use much CPU to keep running,
+since sleep(1) pauses the process between the printed lines.
+
+------------------------------------------------------------------------
+2. SIGINT's number and description
+
+The entry in man 3 signal on macOS is:
+
+    2    SIGINT    terminate process    interrupt program
+
+The number is 2 and the description is "interrupt program". Termination
+is its default action, so the supplied sleeper stops when it receives it.
+
+------------------------------------------------------------------------
+3. Sending an interrupt with kill
+
+Started a new sleeper and used its printed PID in this command:
+
+    kill -s INT 58658
+
+The sleeper's terminal showed:
+
+    Sleeper's PID is: 58658
+    Slept for 0 iterations!
+    Slept for 1 iterations!
+    Slept for 2 iterations!
+
+The process ended when SIGINT arrived. Using kill sends the interrupt to
+the selected PID. Pressing CTRL-C sends it to the terminal's foreground
+process group instead. INT is the name for signal 2 in this command;
+macOS's /bin/kill expects the signal name with its -s option.
+
+------------------------------------------------------------------------
+4. Trying another signal
+
+Used SIGTERM, number 15, with the description "software termination
+signal" in the macOS manual:
+
+    kill -s TERM 58663
+
+Output:
+
+    Sleeper's PID is: 58663
+    Slept for 0 iterations!
+    Slept for 1 iterations!
+    Slept for 2 iterations!
+    zsh: terminated  ./sleep
+
+The program stopped. The sleeper has no custom SIGTERM handler, so the
+signal uses its normal termination action. A program that needs to clean
+up before exiting could handle the request itself.
+
+------------------------------------------------------------------------
+5. Interrupting the original caller
+
+The completed version without a handler is call_sleeper_default.c. The
+caller forks a child, the child executes ./sleep, and the parent waits
+for that child with waitpid(). Pressing CTRL-C produced:
+
+    Forking sleeper...
+    Waiting for sleeper 58673...
+    Sleeper's PID is: 58673
+    Slept for 0 iterations!
+    Slept for 1 iterations!
+    Slept for 2 iterations!
+    ^C
+
+Both the caller and sleeper terminated. The final success message never
+printed. They belong to the same foreground process group, which means
+both receive the keyboard interrupt and both have the default action.
+
+------------------------------------------------------------------------
+6. Installing a handler in the caller
+
+The final call_sleeper.c uses this handler:
+
+    void ignore_sigint( int signum ){
+      int saved_errno = errno;
+      const char message[] = "\nCaller is ignoring SIGINT and waiting for the sleeper.\n";
+      (void) signum;
+      (void) write( STDOUT_FILENO, message, sizeof( message ) - 1 );
+      errno = saved_errno;
+    }
+
+The function reports that the caller is ignoring the interrupt and then
+returns. write() can safely be called from a signal handler. The saved
+errno is restored so this message doesn't change an error value the
+interrupted code might need. signum is unused because the text is fixed.
+
+Register it in main(), before fork():
+
+    if ( signal( SIGINT, ignore_sigint ) == SIG_ERR ) {
+      perror( "Error installing SIGINT handler" );
+      return -1;
+    }
+
+The child restores the normal interrupt action before executing sleep:
+
+    if ( signal( SIGINT, SIG_DFL ) == SIG_ERR ) {
+      perror( "Error restoring SIGINT" );
+      _exit( 1 );
+    }
+
+A successful execvp() resets caught signal handlers as well. The explicit
+reset also covers the child's code before execvp(). The parent checks
+waitpid() in a loop and retries EINTR, so receiving a signal doesn't make
+it finish waiting too early.
+
+------------------------------------------------------------------------
+7. Interrupting the modified caller
+
+Ran the final caller and pressed CTRL-C:
+
+    Forking sleeper...
+    Waiting for sleeper 58681...
+    Sleeper's PID is: 58681
+    Slept for 0 iterations!
+    Slept for 1 iterations!
+    Slept for 2 iterations!
+    ^C
+    Caller is ignoring SIGINT and waiting for the sleeper.
+    Parent finished waiting and returned successfully!
+
+This time the caller stayed alive and printed its interrupt message.
+The sleeper still terminated. Once waitpid() collected the child, the
+caller printed the success line and exited with status 0. The success
+line refers to waiting successfully; the child was terminated by SIGINT.
+
+------------------------------------------------------------------------
+8. Another situation for signal handling
+
+A program could use SIGALRM to handle a timeout. For example, a program
+waiting for a response could set an alarm and have its handler record
+that time has expired. Its normal code can then stop waiting and report
+the timeout. The event can happen while the program is doing something
+else, which is why the notification is asynchronous.
+
+------------------------------------------------------------------------
+Optional Enrichment 1: CTRL-C at a shell prompt
+
+At an empty prompt, CTRL-C brings back a fresh prompt instead of ending
+the shell. With a partially entered command, the shell cancels that line.
+This lets me cancel input and keep using the same terminal session.
+
+When the shell starts an external command with job control, it places
+that command in a foreground process group. The keyboard interrupt can
+reach the running command while the shell survives to accept more input.
+
+------------------------------------------------------------------------
+Optional Enrichment 2: sending SIGUSR1
+
+The file usr_signal.c uses a child to notify its parent after a short
+piece of work. The parent stores a signal flag and installs this handler:
+
+    volatile sig_atomic_t received_usr1 = 0;
+
+    void receive_usr1( int signum ){
+      (void) signum;
+      received_usr1 = 1;
+    }
+
+The child sends its notification with:
+
+    kill( getppid(), SIGUSR1 );
+
+The parent waits until its handler has changed the flag:
+
+    while ( received_usr1 == 0 ) {
+      sleep( 1 );
+    }
+
+Output:
+
+    Parent: waiting for SIGUSR1 from the child...
+    Child: doing some work...
+    Child: done, sending SIGUSR1 to parent.
+    Parent: got SIGUSR1, now doing my work.
+
+The handler only updates the flag. The main loop prints the response
+after receiving the notification, and the parent waits for the child
+before returning. Sleeping between flag checks keeps this from being
+a busy loop.
+
+sleep.c is the supplied file, unchanged. call_sleeper_default.c is the
+exercise 5 version, call_sleeper.c is the final caller, and usr_signal.c
+is the optional communication example.

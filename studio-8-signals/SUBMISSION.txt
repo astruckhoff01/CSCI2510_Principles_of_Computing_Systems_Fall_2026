@@ -1,0 +1,36 @@
+CSCI 2510 - Studio 8: Signals
+Anna Struckhoff
+
+Files:
+  sleep.c                  Supplied sleeper program
+  call_sleeper_default.c   Exercise 5: caller without a SIGINT handler
+  call_sleeper.c           Exercises 6-7: caller with a SIGINT handler
+  usr_signal.c             Optional SIGUSR1 example
+  studio8_answers.txt      All eight required answers and both optional answers
+
+Build on macOS or Linux:
+  cc -Wall -o sleep sleep.c
+  cc -Wall -Wextra -Wpedantic -o call_sleeper_default call_sleeper_default.c
+  cc -Wall -Wextra -Wpedantic -o call_sleeper call_sleeper.c
+  cc -Wall -Wextra -Wpedantic -o usr_signal usr_signal.c
+
+Run from the directory containing ./sleep:
+  ./sleep
+  ./call_sleeper_default
+  ./call_sleeper
+  ./usr_signal
+
+For each of the first three commands, press CTRL-C after a few lines.
+The final caller prints its SIGINT message and finishes waiting for the
+sleeper. The optional SIGUSR1 program finishes automatically.
+
+To send a signal from another terminal, use the printed sleeper PID:
+  kill -s INT <pid>
+  kill -s TERM <pid>
+
+The answers contain recorded macOS output; PIDs change between runs.
+
+The handout requests submission through the Git repository. Copy the C files
+and studio8_answers.txt into the Studio 8 directory of Anna's course
+repository and follow the normal commit and push process. No submission
+has been made automatically.
